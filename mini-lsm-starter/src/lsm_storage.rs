@@ -23,7 +23,7 @@ use std::sync::atomic::AtomicUsize;
 
 use anyhow::Result;
 use bytes::Bytes;
-use parking_lot::{Mutex, MutexGuard, RwLock};
+use parking_lot::{Mutex, MutexGuard, RwLock, RwLockReadGuard};
 
 use crate::block::Block;
 use crate::compact::{
@@ -61,15 +61,16 @@ pub enum WriteBatchRecord<T: AsRef<[u8]>> {
 
 impl LsmStorageState {
     fn create(options: &LsmStorageOptions) -> Self {
-        let levels = match &options.compaction_options {
-            CompactionOptions::Leveled(LeveledCompactionOptions { max_levels, .. })
-            | CompactionOptions::Simple(SimpleLeveledCompactionOptions { max_levels, .. }) => (1
-                ..=*max_levels)
-                .map(|level| (level, Vec::new()))
-                .collect::<Vec<_>>(),
-            CompactionOptions::Tiered(_) => Vec::new(),
-            CompactionOptions::NoCompaction => vec![(1, Vec::new())],
-        };
+        let levels =
+            match &options.compaction_options {
+                CompactionOptions::Leveled(LeveledCompactionOptions { max_levels, .. })
+                | CompactionOptions::Simple(SimpleLeveledCompactionOptions { max_levels, .. }) => (1
+                    ..=*max_levels)
+                    .map(|level| (level, Vec::new()))
+                    .collect::<Vec<_>>(),
+                CompactionOptions::Tiered(_) => Vec::new(),
+                CompactionOptions::NoCompaction => vec![(1, Vec::new())],
+            };
         Self {
             memtable: Arc::new(MemTable::create(0)),
             imm_memtables: Vec::new(),
@@ -293,9 +294,15 @@ impl LsmStorageInner {
     }
 
     /// Get a key from the storage. In day 7, this can be further optimized by using a bloom filter.
-    pub fn get(&self, _key: &[u8]) -> Result<Option<Bytes>> {
-        unimplemented!()
-    }
+    pub fn get(&self, key: &[u8]) -> Result<Option<Bytes>> {
+        let state: Arc<LsmStorageState> = {
+            let st: RwLockReadGuard<_> = self.state.read();
+            Arc::clone(&st)
+        };  // using arc drop the global lock here
+        if let Some(val) = state.memtable.get(key) {
+            return Ok(Some(val));
+        }
+   }
 
     /// Write a batch of data into the storage. Implement in week 2 day 7.
     pub fn write_batch<T: AsRef<[u8]>>(&self, _batch: &[WriteBatchRecord<T>]) -> Result<()> {
@@ -338,7 +345,7 @@ impl LsmStorageInner {
     }
 
     /// Force flush the earliest-created immutable memtable to disk
-    pub fn force_flush_next_imm_memtable(&self) -> Result<()> {
+    fn force_flush_next_imm_memtabltate(&self) -> Result<()> {
         unimplemented!()
     }
 
@@ -348,7 +355,7 @@ impl LsmStorageInner {
     }
 
     /// Create an iterator over a range of keys.
-    pub fn scan(
+    pub fn scan (
         &self,
         _lower: Bound<&[u8]>,
         _upper: Bound<&[u8]>,
