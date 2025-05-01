@@ -300,7 +300,9 @@ impl LsmStorageInner {
             Arc::clone(&st)
         };  // using arc drop the global lock here
         if let Some(val) = state.memtable.get(key) {
-            return Ok(Some(val));
+            Ok(Some(val))
+        } else {
+            Ok(None)
         }
    }
 
@@ -310,13 +312,25 @@ impl LsmStorageInner {
     }
 
     /// Put a key-value pair into the storage by writing into the current memtable.
-    pub fn put(&self, _key: &[u8], _value: &[u8]) -> Result<()> {
-        unimplemented!()
+    pub fn put(&self, key: &[u8], value: &[u8]) -> Result<()> {
+        let state: Arc<LsmStorageState> = {
+            let st: RwLockReadGuard<_> = self.state.read();
+            Arc::clone(&st)
+        };  // using arc drop the global lock here
+        state.memtable.put(key, value)?;
+        Ok(())
     }
 
     /// Remove a key from the storage by writing an empty value.
-    pub fn delete(&self, _key: &[u8]) -> Result<()> {
-        unimplemented!()
+    pub fn delete(&self, key: &[u8]) -> Result<()> {
+        let state: Arc<LsmStorageState> = {
+            let st: RwLockReadGuard<_> = self.state.read();
+            Arc::clone(&st)
+        };  // using arc drop the global lock here
+        if let Some(val) = state.memtable.get(key) {
+            state.memtable.put(key, b"")?;
+        };
+        Ok(())
     }
 
     pub(crate) fn path_of_sst_static(path: impl AsRef<Path>, id: usize) -> PathBuf {
@@ -345,7 +359,7 @@ impl LsmStorageInner {
     }
 
     /// Force flush the earliest-created immutable memtable to disk
-    fn force_flush_next_imm_memtabltate(&self) -> Result<()> {
+    fn force_flush_next_imm_memtable(&self) -> Result<()> {
         unimplemented!()
     }
 

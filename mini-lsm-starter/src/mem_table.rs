@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(unuseariables)] // TODO(you): remove this lint after implementing this mod
+#![allow(unused_variables)] // TODO(you): remove this lint after implementing this mod
 #![allow(dead_code)] // TODO(you): remove this lint after implementing this mod
 
 //use core::slice::SlicePattern;
@@ -77,7 +77,7 @@ impl MemTable {
 
     /// Create a memtable from WAL
     pub fn recover_from_wal(id: usize, path: impl AsRef<Path>) -> Result<Self> {
-        le map = Arc::new(SkipMap::new());
+        let map = Arc::new(SkipMap::new());
         Ok(Self {
             id,
             wal: Some(Wal::recover(path.as_ref(), &map)?),
